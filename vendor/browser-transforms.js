@@ -54,8 +54,20 @@ function transformReact(source, options) {
  * @param {string} source Original source code
  * @param {object?} options Options to pass to jstransform
  */
-function exec(source, options) {
-  return eval(transformReact(source, options).code);
+function exec(source, options, caller) {
+
+  // eval이 아닌 function으로 react코드를 실행 함으로 반환코드를 추가한다.
+  var reactCode = transformReact(source, options).code;
+  reactCode = reactCode.replace(/React\.createElement/, 'return React.createElement');
+
+  // scope인자를 가진 새 함수를 생성한다.
+  // 생성 내용은 reactCode을 가진다.
+  var evalFunc = new Function('scope', reactCode );
+
+  // 생성된 함수에 caller 를 인수로 주입하여
+  // JSX내에 scope라는 이름의 변수로 caller객체에 접근 가능 하도록 한다.
+  // 프로그래머에 의해 직접 컴파일 될 경우 JSX내에 사용된 this를 알지 못하는 문제를 보정하기 위함이다.
+  return evalFunc(caller);
 }
 
 /**
