@@ -53,21 +53,29 @@ function transformReact(source, options) {
  *
  * @param {string} source Original source code
  * @param {object?} options Options to pass to jstransform
+ * @param {object?} 생성되는 react요소 스코프내의 this에 바인딩 할 객체를 지정
  */
 function exec(source, options, caller) {
+  // 프로그래머에 의해 직접 JSX Html을 파싱하여 reactClass의 랜더로 사용하는 상황에서 독립된 스코프에서 동작하여
+  // this가 지정되지 않아 JSXHtml이 단독으로 파싱될 때 내부의 this를 사용하는 코드를 호출 하지 못하는 약점을 보완하기 위함이다.
 
-  // eval이 아닌 function으로 react코드를 실행 함으로 반환코드를 추가한다.
+  //transformReact 함수를 이용하여 JSXHtml 코드를 react코드로 변형한다.
   var reactCode = transformReact(source, options).code;
+
+  // 변형된 코드는 React.createElement 로 시작되며 반환 코드구문을 가지지 않는다.
+  // 이전의 eval을 사용할 경우는 자동으로 최상위 React.createElement의 호출 결과를 리턴하지만
+  // 함수를 이요하여 호출 하게 될 경우 처리만 완료 된 후 반환되지 않아 소멸하게 된다.
+  // 그러므로 최상위 React.createElement 바로 앞에 "return "을 추가하여 최상위 React.Element 가 반환 되도록 한다.
   reactCode = reactCode.replace(/React\.createElement/, 'return React.createElement');
 
-  // scope인자를 가진 새 함수를 생성한다.
-  // 생성 내용은 reactCode을 가진다.
-  var evalFunc = new Function('scope', reactCode );
+  // 새 함수를 생성한다.
+  // 생성 내용은 reactCode을 포함한다.
+  var evalFunc = new Function(reactCode );
 
-  // 생성된 함수에 caller 를 인수로 주입하여
-  // JSX내에 scope라는 이름의 변수로 caller객체에 접근 가능 하도록 한다.
-  // 프로그래머에 의해 직접 컴파일 될 경우 JSX내에 사용된 this를 알지 못하는 문제를 보정하기 위함이다.
-  return evalFunc(caller);
+  // 생성한 eval함수를 apply 함수를 이용하여 호출한다.
+  // evalFunc 내의 this를 인자로 받은 caller로 지정하기 위해 첫번째 인자를 caller로 지정한다.
+  return evalFunc.apply(caller);
+  //return eval(transformReact(source, options).code);
 }
 
 /**
